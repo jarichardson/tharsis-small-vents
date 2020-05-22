@@ -11,10 +11,10 @@ Calculate Mars Vent Data:
   Vent Aspect Ratio
   Prominence
   Cluster ID
-  
-  
+
+
   ********************
-  
+
 Inputs:
   a csv file (vents) that contains:
     Vent ID (unique number) (updated to remove missing/deleted VentID numbers?)
@@ -42,7 +42,7 @@ Outputs:
     Cluster Number
     Cluster Name
     Topographic Prominence
-    
+
 Cataloged small volcanoes have an X,Y location. All small volcanoes will have a
 mapped prominence, even one that is 0.
 
@@ -83,15 +83,15 @@ suppData = pd.DataFrame({'Orientation' : floatColumn,
                          'EquantInt' : intColumn,
                          'Equant' : strColumn,
                          'Prominence' : intColumn,
-                         'clusterName' : strColumn,
                          'clusterID' : intColumn,
+                         'clusterName' : strColumn
                                     })
 
 ventData = points.join(suppData)
 
 
 ### Vent-wise analysis
-for idx, row in ventData.iterrows(): 
+for idx, row in ventData.iterrows():
   ### Remove vent line information for NoVent features (noVentInt)
   if row.noVentInt: #if this value is not zero
     ventData.at[idx, 'v1_lat'] = np.nan
@@ -100,16 +100,18 @@ for idx, row in ventData.iterrows():
     ventData.at[idx, 'v2_long'] = np.nan
     ventData.at[idx, 'Width'] = np.nan
     continue
-  
+
   ### Calculate Vent Length, Aspect Ratio, Orientation
   length = capy.haversineM(row.v1_long,row.v1_lat,row.v2_long,row.v2_lat)
   aspectRatio = length/row.Width
   orientation = capy.Bearing(row.v1_long,row.v1_lat,row.v2_long,row.v2_lat)
-  
+  #record orientation as +/-90 degrees from North
+  if abs(orientation) > 90.0: orientation += np.sign(orientation)*(-180.0);
+
   ### Record these values in DataFrame
   ventData.at[idx, 'Length'] = length
   ventData.at[idx, 'AspectRatio'] = aspectRatio
-  
+
   # Is Vent Equant? If so, record the orientation
   if aspectRatio < 1.5:
     ventData.at[idx, 'EquantInt'] = 1
@@ -124,13 +126,13 @@ sys.stdout.write('Found all vent lengths, orientations, and aspect ratios\n')
 #equantCt = np.sum(ventData['EquantInt'].astype(int))
 
 sys.stdout.write('Statistics Summary:\n')
-sys.stdout.write('  Length [min, max]:       %7.2f m,  %7.2f m\n' % 
+sys.stdout.write('  Length [min, max]:       %7.2f m,  %7.2f m\n' %
                  (ventData['Length'].min(),ventData['Length'].max()))
-sys.stdout.write('  Width [min, max]:        %7.2f m,   %7.2f m\n' % 
+sys.stdout.write('  Width [min, max]:        %7.2f m,   %7.2f m\n' %
                  (ventData['Width'].min(),ventData['Width'].max()))
-sys.stdout.write('  Aspect Ratio [min, max]: %7.2f,     %7.2f\n' % 
+sys.stdout.write('  Aspect Ratio [min, max]: %7.2f,     %7.2f\n' %
                  (ventData['AspectRatio'].min(),ventData['AspectRatio'].max()))
-sys.stdout.write('  Orientation [min, max]:  %7.2f deg, %7.2f deg\n' % 
+sys.stdout.write('  Orientation [min, max]:  %7.2f deg, %7.2f deg\n' %
                  (ventData['Orientation'].min(),ventData['Orientation'].max()))
 sys.stdout.write('  All Vents:      %5d\n' % int(ventData['EquantInt'].count()))
 sys.stdout.write('  Equant Vents:   %5d\n' % int(ventData['EquantInt'].sum()))
@@ -143,11 +145,10 @@ sys.stdout.write('\n\nTotal executed time: %0.2f seconds\n\n' % (time.time() - s
 sys.stdout.write('Finding Vent clusters\n' )
 maxClusterSize = 600000 #600 km radius
 
-#ventLocs = ventData.as_matrix(columns=['Longitude','Latitude'])
-vDD = ventData(columns=['Longitude','Latitude'])
-ventLocs = vDD.to_numpy()
+ventLocs = ventData[['Longitude','Latitude']].to_numpy()
 
 ventData['clusterID'] = capy.doCluster(ventLocs,thresh=maxClusterSize,color='gray')
+ventData['clusterName'] = capy.doCluster(ventLocs,thresh=maxClusterSize,color='gray')
 sys.stdout.write('  Identified %d Clusters.\n' % max(ventData['clusterID']+1))
 
 sys.stdout.write('\n\nTotal executed time: %0.2f seconds\n\n' % (time.time() - startTime))
@@ -162,7 +163,7 @@ sys.stdout.write('Loaded topography data\n\n')
 
 sys.stdout.write('Finding Vent Prominences\n' )
 # Convert peak locations to raster locations
-peaklocs = ventData.as_matrix(columns=['peak_east','peak_north'])
+peaklocs = ventData[['peak_east','peak_north']].to_numpy()
 # Easting to Column
 peaklocs[:,0] = (peaklocs[:,0]-geoTrans[0])/geoTrans[1]
 # Northing to Row
@@ -179,6 +180,3 @@ ventData.to_csv(outputCatalog, sep="\t")
 sys.stdout.write('\nWrote out all data to enhanced catalog at: %s\n\n' % outputCatalog)
 
 sys.stdout.write('\n\nTotal executed time: %0.2f seconds\n\n' % (time.time() - startTime))
-
-
-
